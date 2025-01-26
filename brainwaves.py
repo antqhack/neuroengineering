@@ -69,3 +69,21 @@ event_dict = {
 fig = mne.viz.plot_events(
     events, event_id=event_dict, sfreq=raw.info["sfreq"], first_samp=raw.first_samp
 )
+
+reject_criteria = dict(
+    mag=4000e-15,  # 4000 fT
+    grad=4000e-13,  # 4000 fT/cm
+    eeg=150e-6,  # 150 µV
+    eog=250e-6,
+)  # 250 µV
+
+
+epochs = mne.Epochs(
+    raw,
+    events,
+    event_id=event_dict,
+    tmin=-0.2,
+    tmax=0.5,
+    reject=reject_criteria,
+    preload=True,
+)
