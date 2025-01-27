@@ -87,3 +87,53 @@ epochs = mne.Epochs(
     reject=reject_criteria,
     preload=True,
 )
+
+conds_we_care_about = ["auditory/left", "auditory/right", "visual/left", "visual/right"]
+epochs.equalize_event_counts(conds_we_care_about)  # this operates in-place
+aud_epochs = epochs["auditory"]
+vis_epochs = epochs["visual"]
+del raw, epochs  # free up memory
+
+aud_epochs.plot_image(picks=["MEG 1332", "EEG 021"])
+frequencies = np.arange(7, 30, 3)
+
+power = aud_epochs.compute_tfr(
+    "morlet", n_cycles=2, return_itc=False, freqs=frequencies, decim=3, average=True
+)
+power.plot(["MEG 1332"])
+
+aud_evoked = aud_epochs.average()
+vis_evoked = vis_epochs.average()
+
+mne.viz.plot_compare_evokeds(
+    dict(auditory=aud_evoked, visual=vis_evoked),
+    legend="upper left",
+    show_sensors="upper right",
+)
+
+aud_evoked.plot_joint(picks="eeg")
+aud_evoked.plot_topomap(times=[0.0, 0.08, 0.1, 0.12, 0.2], ch_type="eeg")
+
+
+evoked_diff = mne.combine_evoked([aud_evoked, vis_evoked], weights=[1, -1])
+evoked_diff.pick(picks="mag").plot_topo(color="r", legend=False)
+
+# load inverse operator
+inverse_operator_file = (
+    sample_data_folder / "MEG" / "sample" / "sample_audvis-meg-oct-6-meg-inv.fif"
+)
+inv_operator = mne.minimum_norm.read_inverse_operator(inverse_operator_file)
+# set signal-to-noise ratio (SNR) to compute regularization parameter (λ²)
+snr = 3.0
+lambda2 = 1.0 / snr**2
+# generate the source time course (STC)
+stc = mne.minimum_norm.apply_inverse(
+    vis_evoked, inv_operator, lambda2=lambda2, method="MNE"
+)  # or dSPM, sLORETA, eLORETA
+
+# path to subjects' MRI files
+subjects_dir = sample_data_folder / "subjects"
+# plot the STC
+stc.plot(
+    initial_time=0.1, hemi="split", views=["lat", "med"], subjects_dir=subjects_dir
+)
